@@ -16,8 +16,17 @@ from tqdm import tqdm
 
 
 """ une classe abstraite qui donne un formalisme pour tous les matchers"""
+
+
 class Matcher(ABC):
+
     def __init__(self, ratio: int, var_treatment: str):
+        """__init__ 
+
+        Args:
+            ratio (int): ratio of control individuals vs treated ones
+            var_treatment (str): var name that indicates whether an individual has been treated or not. This var takes 0 or 1. 
+        """
         self.ratio = ratio
         assert self.ratio >= 1
 
@@ -44,44 +53,51 @@ class PropensityScoreMatcher(Matcher):
 
     def __init__(self, ratio: int, var_treatment: str, time_series_var : str,  id_var : str , caliper=0.15, cylinder = False , random_state=42):
 
-        """ _summary_
+        """ 
+
+        Args:
+            ratio (int): ratio of control individuals vs treated ones
+            var_treatment (str): var name that indicates whether an individual has been treated or not. This var takes 0 or 1. 
+            time_series_var (str) : var name of the time serie variable (eg. year, month day...). If the df is not a time serie var, var needs to be set on ""
+            id_var (str) : name of the var giving a id to identify conssitently any individual over time
+            caliper (float) : maximum spread for matching on propensity score, default is 0.15 like in literature
+            cylinder (bool) : if True, a treated individual will be match with a control that has a presence over the exact same period. -- only concerns time series
         """
+        
+
         
         super().__init__(ratio = ratio, var_treatment=var_treatment)
         
 
         self.caliper = caliper
         assert (self.caliper >= 0) & (self.caliper <= 1)
+
         self.random_state = random_state
 
         self.time_series_var = time_series_var
         self.cylinder = cylinder
         self.id_var = id_var
 
-
-
+        
         pass
 
-    #    def traitement(row) : 
-    # if pd.isnull(row['annee_traitement']) :
-    #     return 0
-    # elif row['year'] < row['annee_traitement'] :
-    #     return row['year'] - row['annee_traitement'] 
-    # else :
-    #     return row['year']- row['annee_traitement'] + 1  write this function in this context
 
     def _write_treatment_period(self, df: pd.DataFrame) -> pd.DataFrame:
         """_write_treatment_period _summary_
-        the treatment needs to happend once on the period. This function will indicate whether it is t+0 t+1 t+2 etc
+        This function is only called for time series. This function will indicate it is t+0 t+1 t+2 etc for each row cocnerning an individual treated at time t
 
         Args:
-            df (pd.DataFrame): _description_
+            df (pd.DataFrame): DataFrame that requires for each individual to have only 1 treatment over the period. 
 
         Returns:
-            pd.DataFrame: _description_
+            pd.DataFrame: DataFrame enriched with : 
+             - self.time_series_var + "_treatment" that indicated the time of treatment
+             - treatment_period that indicates time to treatment
+             - treated_over_time that indicates if a individual is part of the treatment group or control one.
+
         """
         year_treatment_per_id = df[df[self.var_treatment] ==1][[self.id_var, self.time_series_var]].drop_duplicates()
-        assert year_treatment_per_id[self.id_var].nunique() == year_treatment_per_id.shape[0]
+        assert year_treatment_per_id[self.id_var].nunique() == year_treatment_per_id.shape[0] #asserts that only one time of treatment exists by individual
         df = df.merge(year_treatment_per_id, on = self.id_var, how = "left", suffixes = ("", "_treatment"))
 
         for idx, row in tqdm(df.iterrows(), desc = "Processing to add treatment period", total = df.shape[0]):
@@ -98,26 +114,28 @@ class PropensityScoreMatcher(Matcher):
 
 
     def _identify_period_of_presence(self, df: pd.DataFrame) -> dict:
-        """_identify_years_of_presence _summary_
+        """_identify_years_of_presence 
+        In order to process to cylinder, that function stores the exact period of presence of the indviduals.
 
         Args:
-            df (pd.DataFrame): _description_
+            df (pd.DataFrame): Only concerns df that have a time_serie_var.
 
         Returns:
-            dict: _description_
+            dict: its format is {id : List(time of presence), ... }
         """
         period_of_presence = {}
         for idx in df[id_var].unique() : 
             period_of_presence[idx] = df[df[id_var] == idx][self.time_series_var].nunique()
+
         return period_of_presence
 
 
-        
-
-
+    
     
     def fit_logit_on_df(self, df: pd.DataFrame, var_logit : list) -> pd.DataFrame:
-        """fit_logit_on_df _summary_
+        """fit_logit_on_df 
+
+        fits a logit on the   
 
         Args:
             df (pd.DataFrame): _description_
@@ -204,6 +222,8 @@ class PropensityScoreMatcher(Matcher):
         """
  
         assert df[self.var_treatment].nunique() == 2
+
+
         if self.time_series_var != "" :
             df = self._write_treatment_period(df)
   
@@ -226,23 +246,50 @@ class PropensityScoreMatcher(Matcher):
                     tmp_df_to_match_on = df[df[self.var_treatment] == 0]
 
                 if exact_matching != [""] : 
-                    closest = self._get_closest_neighbors(self._filter_on_exact_conditions(tmp_df_to_match_on, row, exact_matching),valeur_propensity =  row["propensity_score"], n_neighbors = self.ratio +1, random_state = self.random_state)
+                    closest = self._get_closest_neighbors(self._filter_on_exact_conditions(tmp_df_to_match_on, row, exact_matching),valeur_propensity =  row["propensity_score"], n_neighbors = self.ratio, random_state = self.random_state)
                 else :
                     closest = self._get_closest_neighbors(tmp_df_to_match_on,valeur_propensity= row["propensity_score"], n_neighbors = self.ratio , random_state = self.random_state)
  
                 self._matching_indices[row[self.id_var]] = df.loc[closest, self.id_var].unique().tolist()  #get id_var at index closest
 
-
-
-
         #add matched index to dataframe
-        df["matched_index"] = df[self.id_var].map(self._matching_indices)
+        df["matched_id"] = df[self.id_var].map(self._matching_indices)
         list_counterfactual = [item for sublist in list(self._matching_indices.values()) for item in sublist]
 
         #filter df to keep only matched rows and treated rows
         df.loc[df[self.id_var].isin(list_counterfactual + list(self._matching_indices.keys())),  "to_keep_after_matching"] = 1
         df["to_keep_after_matching"].fillna(0, inplace = True)
         return df
+    
+    def get_dataframe_for_analysis( self, df : pd.DataFrame()) -> pd.DataFrame: 
+
+        """ The match function returns a dataframe enriched with the matched_id. It identifies the individuals that are part of the treatment group and the control group.
+        This function will return a dataframe that is ready for analysis. More precisely, it will return a dataframe that contains the treated individuals and the matched ones duplicated as many times as they have been matched.
+
+        args : 
+            df (pd.DataFrame : dataframe that has been matched.
+
+        Returns:
+            pd.DataFrame : _description_
+        """
+
+        assert "matched_id" in df.columns 
+        assert "to_keep_after_matching" in df.columns 
+
+        treated_list = df[(df["treated_over_time"]==1) & (df[self.var_treatment]==1)][self.id_var].value_counts().to_dict()
+        matched_list = df[ (df[self.var_treatment]==1)]["matched_id"].explode().value_counts().to_dict()
+        len(list(set(treated_list.keys()) & set(matched_list.keys())))==0
+
+        counter = treated_list.copy()
+        counter.update(matched_list)
+
+        df_for_analysis = []
+        for k, v in counter.items() : 
+            df_for_analysis.append(pd.concat([df[df[self.id_var]==k]]*v, axis = 0))
+        df_for_analysis = pd.concat(df_for_analysis, axis=0)
+        return df_for_analysis
+
+
     
     def _mean_difference_(self, df: pd.DataFrame, var_to_plot : list):
         """_mean_difference_ _summary_
@@ -281,10 +328,12 @@ class PropensityScoreMatcher(Matcher):
         plt.show()
         pass
 
+
     def report(self, df: pd.DataFrame, var_to_plot : list):
 
         """ _summary_
         """
+        
         self._plot_mean_difference_(df, var_to_plot)
         pass
 
