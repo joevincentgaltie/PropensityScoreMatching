@@ -40,14 +40,25 @@ class Matcher(ABC):
 
 class PropensityScoreMatcher(Matcher):
     """
+    Propensity Score Matcher Class.
 
-    ```python
+    This class provides functionalities for conducting propensity score matching analysis.
 
-    from PropensityScoreMatching import PropensityScoreMatcher
+    Args:
+        var_treatment (str): Variable name indicating whether an individual has been treated or not. This variable takes 0 or 1.
+        id_var (str): Name of the variable providing an ID to identify individuals consistently over time.
+        ratio (int, optional): Ratio of control individuals vs treated ones. Defaults to 1.
+        caliper (float, optional): Maximum spread for matching on propensity score, default is 0.15 as in literature. Defaults to 0.15.
+        random_state (int, optional): Seed for random number generation. Defaults to 42.
+
+    Methods:
+        fit_logit_on_df(df, var_logit): Fits a logistic regression model using statsmodels.api.formula on the dataframe and adds the propensity score to the dataframe.
+        check_plot_common_support(df): Checks graphically the common support of the propensity score between the treated and control group by plotting the distribution of the propensity score for each group.
+        match(df, exact_matching=None): Matches treated and control individuals based on propensity scores.
+        report(df, var_to_plot): Generates a report summarizing the matching results.
+        get_dataframe_for_analysis(df): Returns a dataframe ready for analysis after matching.
 
 
-
-    ```
     """
 
     def __init__(
@@ -169,12 +180,20 @@ class PropensityScoreMatcher(Matcher):
     def match(
         self, df: pd.DataFrame, exact_matching: Union[List, None] = None
     ) -> pd.DataFrame:
-        """lorem ipsum
+        """
+        Matches treated and control individuals based on propensity scores.
+
+        This method matches treated and control individuals in the dataframe based on their propensity scores. The matching is performed using the nearest neighbors method within a specified caliper. Optionally, exact matching can be performed on additional variables.
 
         Args:
-            var (type):
+            df (pd.DataFrame): The dataframe containing the data to be matched.
+            exact_matching (Union[List, None], optional): A list of variables for exact matching. Defaults to None.
 
-        Return:
+        Returns:
+            pd.DataFrame: The dataframe with additional columns indicating matched individuals and those to be kept after matching.
+
+        Raises:
+            AssertionError: If the number of unique values in the treatment variable is not equal to 2.
 
         """
 
@@ -467,32 +486,6 @@ class PropensityScoreMatcherTS(PropensityScoreMatcher):
 
         return period_of_presence
 
-    # def _filter_on_exact_conditions(
-    #     self,
-    #     df: pd.DataFrame,
-    #     row: pd.Series(dtype="float64"),
-    #     exact_matching: list,
-    #     time_series=True,
-    # ) -> pd.DataFrame:
-    #     """_filter_on_exact_conditions
-
-    #     Matching can be done under constraints : a control individual can only be matched with a treated individual that has the same given characteristics.
-    #     To process so, this function filters the dataframe on the exact conditions given by the user.
-
-    #     Args:
-    #         df (pd.DataFrame): DataFrame to filter
-    #         exact_matching (list): List of var names that need to be the same for the treated and control individual to be matched.
-    #         row (pd.Series, optional): row
-    #         time_series (bool, optional): _description_. Defaults to True.
-
-    #     Returns:
-    #         pd.DataFrame: _description_
-    #     """
-    #     exact_conditions = (df[exact_matching] == row[exact_matching]).all(axis=1)
-    #     return df[exact_conditions]
-
-    # result of the logit, result summary
-
     def match(
         self, df: pd.DataFrame, exact_matching: Union[List, None] = None
     ) -> pd.DataFrame:
@@ -583,9 +576,14 @@ class PropensityScoreMatcherTS(PropensityScoreMatcher):
 
         df_for_analysis = []
 
-        for treated in tqdm(treated_list, desc="Adding treated and its controls", total = len(treated_list)):
-
-            tmp_data_treated = df[(df[self.id_var] == treated) & (df["to_keep_after_matching"]==1)]
+        for treated in tqdm(
+            treated_list,
+            desc="Adding treated and its controls",
+            total=len(treated_list),
+        ):
+            tmp_data_treated = df[
+                (df[self.id_var] == treated) & (df["to_keep_after_matching"] == 1)
+            ]
             period_treatment = (
                 tmp_data_treated[[self.time_series_var, "treatment_period"]]
                 .set_index(self.time_series_var)
@@ -595,11 +593,11 @@ class PropensityScoreMatcherTS(PropensityScoreMatcher):
 
             for control in tmp_data_treated["matched_id"].explode().unique().tolist():
                 tmp_data_control = df[df[self.id_var] == control]
-                tmp_data_control.loc[:,"treatment_period"] = tmp_data_control.loc[:,
-                    self.time_series_var
+                tmp_data_control.loc[:, "treatment_period"] = tmp_data_control.loc[
+                    :, self.time_series_var
                 ].map(period_treatment)
                 df_for_analysis.append(tmp_data_control)
-        
+
         df_for_analysis = pd.concat(df_for_analysis, axis=0)
 
         return df_for_analysis
