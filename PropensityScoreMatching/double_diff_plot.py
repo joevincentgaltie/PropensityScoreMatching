@@ -33,6 +33,7 @@ class DoubleDiff(ABC):
 
         self.var_group_distinction = var_group_distinction
         self.var_time_series = var_time_series
+        self.color_palette = color_palette
 
     def _get_var_bootstrapped(self, df: pd.DataFrame, var: str):
         """Computes the confidence interval bootstrapped for a var at each time period and for each group.
@@ -86,7 +87,7 @@ class DoubleDiff(ABC):
         plt.figure()
 
         for group, color in zip(
-            df_bootstrapped[self.var_group_distinction].unique(), color_palette
+            df_bootstrapped[self.var_group_distinction].unique(), self.color_palette
         ):
             sns.lineplot(
                 data=df_bootstrapped[
@@ -128,6 +129,7 @@ class DoubleDiff(ABC):
                 color=color,
                 alpha=0.3,
             )
-        plt.legend()
+
+        plt.legend(bbox_to_anchor = (0.5, -0.15), ncol = 2)
         plt.title(f"Evol of {var}")
         plt.show()
