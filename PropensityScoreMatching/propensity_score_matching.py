@@ -12,6 +12,12 @@ import statsmodels.formula.api as smf
 from matplotlib.ticker import FuncFormatter
 from tqdm import tqdm
 
+
+from PropensityScoreMatching import utils
+
+utils.set_graph_style()
+
+
 """ une classe abstraite qui donne un formalisme pour tous les matchers"""
 
 
@@ -127,17 +133,16 @@ class PropensityScoreMatcher(Matcher):
             df (_type_): df after the logit has been fitted and the propensity score has been added to the dataframe.
 
         """
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
+        plt.figure()
         sns.histplot(
             df,
             x="propensity_score",
             hue=self.var_treatment,
-            ax=ax,
             bins=1000,
             alpha=0.7,
             kde=True,
-        )
+            legend=True
+        ) 
         plt.xlabel("Propensity score")
         plt.ylabel("Density")
         plt.show()
@@ -293,6 +298,7 @@ class PropensityScoreMatcher(Matcher):
         tmp_2.plot(kind="bar", figsize=(10, 6))
         formatter = FuncFormatter(lambda x, _: "{:.0%}".format(x / 100))
         plt.gca().yaxis.set_major_formatter(formatter)
+        plt.legend(bbox_to_anchor=(0.5, -0.15), ncol=2)
         plt.ylabel("Percentage (%)")
         plt.title(
             "mean difference between treated and control before and after matching"
