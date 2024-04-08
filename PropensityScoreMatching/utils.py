@@ -19,7 +19,7 @@ def bootstrap_mean_confidence_interval(data : pd.Series, n_replicates  : int = 1
 
     return np.percentile(replicates,percentiles)
 
-
+# Plot parameters 
 def set_graph_style():
     """Sets the default style for all graphs."""
 
