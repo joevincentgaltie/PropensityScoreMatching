@@ -22,6 +22,8 @@ Contributions are welcome!
 
 
 
+*** French version
+
 # PropensityScoreMatching
 
 L'appariement par score de propension est une méthode d'ébaluation des politiques publiques. Elle permet de comparer les réalisations d’une variable, observées dans deux échantillons distincts, en ajustant des différences de composition en termes de caractéristiques observables entre ces échantillons. Cet ajustment vise à réduire le biais engendré par les effets de sélection liés aux caractéristiques observables des bénéficiaires 1 pour estimer l’effet causal d’un traitement.
