@@ -1,4 +1,4 @@
-#PropensityScoreMatching
+# PropensityScoreMatching
 
 Propensity Score Matching (PSM) is a method used in public policy evaluation. It enables comparison of outcomes for a variable observed in two distinct samples by adjusting for differences in observable characteristics between these samples. This adjustment aims to reduce the bias caused by selection effects related to observable characteristics of the treated individuals, in order to estimate the causal effect of a treatment.
 
